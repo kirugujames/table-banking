@@ -43,13 +43,90 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: 'Dashboard', icon: Home, path: 'dashboard' },
   { name: 'Members', icon: Users, path: 'members' },
-  { name: 'Loans', icon: CreditCard, path: 'loans' },
+  {
+    name: 'Loans',
+    icon: CreditCard,
+    path: 'loans',
+    children: [
+      { name: 'Loan Applications', path: 'loans' },
+      { name: 'Loan Products', path: 'loan-products' },
+    ],
+  },
   { name: 'Savings', icon: PiggyBank, path: 'savings' },
   { name: 'Transactions', icon: ArrowLeftRight, path: 'transactions' },
   { name: 'Expenses', icon: Receipt, path: 'expenses' },
   { name: 'Reports', icon: BarChart3, path: 'reports' },
   { name: 'Settings', icon: Settings, path: 'settings' },
 ];
+
+interface NavItemProps {
+  item: any;
+  currentPage: string;
+  onNavigate: (path: string) => void;
+}
+
+function NavItem({ item, currentPage, onNavigate }: NavItemProps) {
+  const isActive = currentPage === item.path || (item.children?.some((child: any) => currentPage === child.path));
+  const [isOpen, setIsOpen] = useState(isActive);
+
+  if (item.children) {
+    return (
+      <li className="space-y-1">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={cn(
+            'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+            isActive
+              ? 'bg-primary/10 text-primary'
+              : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <item.icon className="h-5 w-5" />
+            {item.name}
+          </div>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+        </button>
+        {isOpen && (
+          <ul className="ml-9 space-y-1 mt-1">
+            {item.children.map((child: any) => (
+              <li key={child.name}>
+                <button
+                  onClick={() => onNavigate(child.path)}
+                  className={cn(
+                    'flex w-full items-center rounded-md px-3 py-2 text-xs font-medium transition-colors',
+                    currentPage === child.path
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  )}
+                >
+                  {child.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <button
+        onClick={() => onNavigate(item.path)}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          isActive
+            ? 'bg-primary text-primary-foreground'
+            : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+        )}
+      >
+        <item.icon className="h-5 w-5" />
+        {item.name}
+      </button>
+    </li>
+  );
+}
 
 export function DashboardLayout({ children, currentPage, onNavigate, user, onLogout }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -107,25 +184,14 @@ export function DashboardLayout({ children, currentPage, onNavigate, user, onLog
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4">
             <ul className="space-y-1">
-              {navigation.map((item) => {
-                const isActive = currentPage === item.path;
-                return (
-                  <li key={item.name}>
-                    <button
-                      onClick={() => handleNavigation(item.path)}
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-foreground hover:bg-accent hover:text-accent-foreground'
-                      )}
-                    >
-                      <item.icon className="h-5 w-5" />
-                      {item.name}
-                    </button>
-                  </li>
-                );
-              })}
+              {navigation.map((item) => (
+                <NavItem
+                  key={item.name}
+                  item={item}
+                  currentPage={currentPage}
+                  onNavigate={handleNavigation}
+                />
+              ))}
             </ul>
           </nav>
 

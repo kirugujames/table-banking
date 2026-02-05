@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,59 +8,65 @@ import {
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Separator } from '@/app/components/ui/separator';
-import { 
-  Download, 
-  Printer, 
-  CheckCircle, 
+import {
+  Download,
+  Printer,
+  CheckCircle,
   Clock,
   User,
   Calendar,
   Hash,
-  DollarSign,
   FileText,
+  Loader2,
+  ArrowRightLeft,
+  Users,
 } from 'lucide-react';
-
-interface Transaction {
-  id: string;
-  date: string;
-  time: string;
-  member: string;
-  memberId: string;
-  type: string;
-  category: string;
-  amount: number;
-  balanceAfter: number;
-  reference: string;
-  status: 'completed' | 'pending' | 'failed';
-  processedBy?: string;
-  notes?: string;
-}
+import { transactionService, TransactionDetails } from '@/app/lib/transaction-service';
 
 interface TransactionDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  transaction: Transaction | null;
+  transactionId: string | null;
 }
 
-export function TransactionDetailModal({ 
-  open, 
-  onOpenChange, 
-  transaction 
+export function TransactionDetailModal({
+  open,
+  onOpenChange,
+  transactionId
 }: TransactionDetailModalProps) {
-  if (!transaction) return null;
+  const [details, setDetails] = useState<TransactionDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && transactionId) {
+      const fetchDetails = async () => {
+        setLoading(true);
+        try {
+          const data = await transactionService.getTransactionDetails(transactionId);
+          setDetails(data);
+        } catch (error) {
+          console.error('Error fetching transaction details:', error);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchDetails();
+    } else if (!open) {
+      setDetails(null);
+    }
+  }, [open, transactionId]);
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleDownload = () => {
-    console.log('Downloading receipt for:', transaction.id);
-    // Implement download logic
+    console.log('Downloading receipt for:', transactionId);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl lg:max-w-[50vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -67,157 +74,133 @@ export function TransactionDetailModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Transaction Status */}
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-3">
-              {transaction.status === 'completed' ? (
-                <div className="rounded-full bg-green-100 dark:bg-green-900/20 p-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                </div>
-              ) : (
-                <div className="rounded-full bg-amber-100 dark:bg-amber-900/20 p-2">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-              )}
-              <div>
-                <p className="font-semibold">Transaction {transaction.status}</p>
-                <p className="text-sm text-muted-foreground">
-                  {transaction.date} at {transaction.time}
-                </p>
-              </div>
-            </div>
-            <Badge
-              variant={
-                transaction.status === 'completed'
-                  ? 'default'
-                  : transaction.status === 'pending'
-                  ? 'secondary'
-                  : 'destructive'
-              }
-              className="text-sm"
-            >
-              {transaction.status.toUpperCase()}
-            </Badge>
+        {loading ? (
+          <div className="flex h-[300px] items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-
-          {/* Transaction Amount */}
-          <div className="text-center py-6 border rounded-lg bg-gradient-to-br from-primary/5 to-primary/10">
-            <p className="text-sm text-muted-foreground mb-2">Transaction Amount</p>
-            <p
-              className={`text-4xl font-bold ${
-                transaction.amount > 0
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400'
-              }`}
-            >
-              {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toLocaleString()}
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Balance After: ${transaction.balanceAfter.toLocaleString()}
-            </p>
-          </div>
-
-          <Separator />
-
-          {/* Transaction Details */}
-          <div className="space-y-4">
-            <h3 className="font-semibold">Transaction Information</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
-                <Hash className="h-4 w-4 text-muted-foreground mt-1" />
+        ) : details ? (
+          <div className="space-y-6 py-4">
+            {/* Header Info */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-muted/50 rounded-lg gap-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2 text-primary">
+                  <Hash className="h-5 w-5" />
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Transaction ID</p>
-                  <p className="font-mono font-medium">{transaction.id}</p>
+                  <p className="font-mono font-bold text-lg">{details.transaction_id}</p>
                 </div>
               </div>
-
-              <div className="flex items-start gap-3">
-                <FileText className="h-4 w-4 text-muted-foreground mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Reference</p>
-                  <p className="font-mono font-medium">{transaction.reference}</p>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-primary/10 p-2 text-primary">
+                  <Calendar className="h-5 w-5" />
                 </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <User className="h-4 w-4 text-muted-foreground mt-1" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Member</p>
-                  <p className="font-medium">{transaction.member}</p>
-                  <p className="text-sm text-muted-foreground">{transaction.memberId}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Calendar className="h-4 w-4 text-muted-foreground mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Date & Time</p>
-                  <p className="font-medium">{transaction.date}</p>
-                  <p className="text-sm text-muted-foreground">{transaction.time}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <DollarSign className="h-4 w-4 text-muted-foreground mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Transaction Type</p>
-                  <p className="font-medium">{transaction.type}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <FileText className="h-4 w-4 text-muted-foreground mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Category</p>
-                  <Badge variant="outline">{transaction.category}</Badge>
+                  <p className="text-sm text-muted-foreground">Transaction Date</p>
+                  <p className="font-bold">{details.date}</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          {transaction.processedBy && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h3 className="font-semibold">Processing Information</h3>
-                <div className="flex items-start gap-3">
-                  <User className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Processed By</p>
-                    <p className="font-medium">{transaction.processedBy}</p>
+            {/* Parties Involved */}
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <Users className="h-4 w-4 text-primary" />
+                Parties Involved
+              </h3>
+              <div className="grid gap-2">
+                {details.parties_involved.map((party, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{party.name}</p>
+                        <p className="text-xs text-muted-foreground">{party.id}</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline">{party.type}</Badge>
                   </div>
-                </div>
+                ))}
               </div>
-            </>
-          )}
+            </div>
 
-          {transaction.notes && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h3 className="font-semibold">Notes</h3>
-                <p className="text-sm text-muted-foreground">{transaction.notes}</p>
+            {/* Accounts Affected (Ledger) */}
+            <div className="space-y-3">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <ArrowRightLeft className="h-4 w-4 text-primary" />
+                Accounts Affected
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted text-muted-foreground">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Account</th>
+                      <th className="text-right p-3 font-medium">Debit</th>
+                      <th className="text-right p-3 font-medium">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {details.accounts_affected.map((item, index) => (
+                      <tr key={index} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-3 font-medium">{item.account}</td>
+                        <td className="p-3 text-right text-red-600">
+                          {item.debit > 0 ? `KSH ${item.debit.toLocaleString()}` : '-'}
+                        </td>
+                        <td className="p-3 text-right text-green-600">
+                          {item.credit > 0 ? `KSH ${item.credit.toLocaleString()}` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/50 font-bold border-t">
+                    <tr>
+                      <td className="p-3">Total</td>
+                      <td className="p-3 text-right text-red-600">
+                        KSH {details.accounts_affected.reduce((acc, curr) => acc + curr.debit, 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-green-600">
+                        KSH {details.accounts_affected.reduce((acc, curr) => acc + curr.credit, 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-            </>
-          )}
+            </div>
 
-          <Separator />
+            {/* Remarks */}
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 font-semibold">
+                <FileText className="h-4 w-4 text-primary" />
+                Remarks
+              </h3>
+              <div className="p-4 bg-muted/30 border rounded-lg whitespace-pre-wrap text-sm italic">
+                {details.remarks || 'No additional remarks provided.'}
+              </div>
+            </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-2" onClick={handlePrint}>
-              <Printer className="h-4 w-4" />
-              Print Receipt
-            </Button>
-            <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
-              <Download className="h-4 w-4" />
-              Download PDF
-            </Button>
+            <Separator />
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 gap-2" onClick={handlePrint}>
+                <Printer className="h-4 w-4" />
+                Print Receipt
+              </Button>
+              <Button variant="outline" className="flex-1 gap-2" onClick={handleDownload}>
+                <Download className="h-4 w-4" />
+                Download PDF
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground">
+            Failed to load transaction details.
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
 }
+

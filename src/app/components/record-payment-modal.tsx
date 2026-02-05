@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,10 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import { Textarea } from '@/app/components/ui/textarea';
-import { Card, CardContent } from '@/app/components/ui/card';
-import { DollarSign, Loader2, Info } from 'lucide-react';
-import { Alert, AlertDescription } from '@/app/components/ui/alert';
+import { Checkbox } from '@/app/components/ui/checkbox';
+import { Loader2, Banknote } from 'lucide-react';
+import { loanService } from '@/app/lib/loan-service';
+import { toast } from 'react-hot-toast';
 
 interface RecordPaymentModalProps {
   open: boolean;
@@ -31,236 +31,191 @@ interface RecordPaymentModalProps {
     memberId: string;
     loanAmount: string;
     outstandingBalance: string;
-    nextPaymentDue: string;
-    monthlyPayment: string;
   } | null;
+  onSuccess?: () => void;
 }
 
-export function RecordPaymentModal({ open, onOpenChange, loan }: RecordPaymentModalProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    paymentAmount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
-    paymentMethod: '',
-    referenceNumber: '',
-    penaltyAmount: '',
-    notes: '',
-  });
+export function RecordPaymentModal({ open, onOpenChange, loan, onSuccess }: RecordPaymentModalProps) {
+  const [amount, setAmount] = useState('');
+  const [mode, setMode] = useState('Cash');
+  const [reference, setReference] = useState('');
+  const [isFromSavings, setIsFromSavings] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const paymentMethods = [
-    'Cash',
-    'Bank Transfer',
-    'Cheque',
-    'Mobile Money',
-    'Direct Debit',
-  ];
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  useEffect(() => {
+    if (isFromSavings) {
+      setMode('Savings');
+    } else if (mode === 'Savings') {
+      setMode('Cash');
+    }
+  }, [isFromSavings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    console.log('Payment recorded:', { ...formData, loanId: loan?.id });
-    setIsSubmitting(false);
-    onOpenChange(false);
-    
-    // Reset form
-    setFormData({
-      paymentAmount: '',
-      paymentDate: new Date().toISOString().split('T')[0],
-      paymentMethod: '',
-      referenceNumber: '',
-      penaltyAmount: '',
-      notes: '',
-    });
+    if (!loan) return;
+
+    if (!amount || Number(amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        loan: loan.id,
+        amount: Number(amount),
+        mode: isFromSavings ? 'Savings' : mode,
+        reference: reference
+      };
+
+      const response = await loanService.recordLoanRepayment(payload);
+      toast.success(response.message || 'Repayment recorded successfully!');
+
+      onOpenChange(false);
+      // Reset form
+      setAmount('');
+      setReference('');
+      setIsFromSavings(false);
+      setMode('Cash');
+
+      onSuccess?.();
+    } catch (error: any) {
+      console.error('Repayment error:', error);
+      let errorMessage = 'Failed to record repayment. Please try again.';
+
+      const errorData = error.response?.data;
+      if (errorData) {
+        if (errorData._server_messages) {
+          try {
+            const messages = JSON.parse(errorData._server_messages);
+            const parsedMessage = JSON.parse(messages[0]);
+            errorMessage = parsedMessage.message;
+          } catch (e) {
+            console.error('Failed to parse _server_messages', e);
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.exception) {
+          errorMessage = errorData.exception.split(':').pop()?.trim() || errorMessage;
+        }
+      }
+
+      toast.error(errorMessage, { duration: 5000 });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const calculateNewBalance = () => {
-    if (!loan) return '0.00';
-    const outstanding = parseFloat(loan.outstandingBalance.replace(/[$,]/g, '')) || 0;
-    const payment = parseFloat(formData.paymentAmount) || 0;
-    const penalty = parseFloat(formData.penaltyAmount) || 0;
-    return (outstanding - payment + penalty).toFixed(2);
-  };
+  if (!loan) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Record Loan Payment
+            <Banknote className="h-5 w-5" />
+            Pay Loan
           </DialogTitle>
           <DialogDescription>
-            Record a payment for this loan. All fields marked with * are required.
+            Record a repayment for loan {loan.id}.
           </DialogDescription>
         </DialogHeader>
-        
-        {loan && (
-          <Card className="bg-muted/50">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Loan ID</p>
-                  <p className="font-mono font-medium">{loan.id}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Member</p>
-                  <p className="font-medium">{loan.memberName}</p>
-                  <p className="text-xs text-muted-foreground">{loan.memberId}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-                  <p className="text-lg font-semibold text-red-600">{loan.outstandingBalance}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Monthly Payment</p>
-                  <p className="text-lg font-semibold">{loan.monthlyPayment}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-6 py-4">
-            {/* Payment Details */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="paymentAmount">Payment Amount *</Label>
-                <Input
-                  id="paymentAmount"
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.paymentAmount}
-                  onChange={(e) => handleChange('paymentAmount', e.target.value)}
-                  required
-                  min="0"
-                  step="0.01"
-                />
-                {loan && (
-                  <p className="text-xs text-muted-foreground">
-                    Suggested: {loan.monthlyPayment}
-                  </p>
-                )}
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="paymentDate">Payment Date *</Label>
-                <Input
-                  id="paymentDate"
-                  type="date"
-                  value={formData.paymentDate}
-                  onChange={(e) => handleChange('paymentDate', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="paymentMethod">Payment Method *</Label>
-                <Select 
-                  value={formData.paymentMethod} 
-                  onValueChange={(value) => handleChange('paymentMethod', value)}
-                >
-                  <SelectTrigger id="paymentMethod">
-                    <SelectValue placeholder="Select payment method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods.map((method) => (
-                      <SelectItem key={method} value={method.toLowerCase().replace(' ', '-')}>
-                        {method}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="referenceNumber">Transaction Reference</Label>
-                <Input
-                  id="referenceNumber"
-                  placeholder="Enter transaction reference"
-                  value={formData.referenceNumber}
-                  onChange={(e) => handleChange('referenceNumber', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="penaltyAmount">Late Payment Penalty (if any)</Label>
-                <Input
-                  id="penaltyAmount"
-                  type="number"
-                  placeholder="0.00"
-                  value={formData.penaltyAmount}
-                  onChange={(e) => handleChange('penaltyAmount', e.target.value)}
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="Add any additional notes about this payment"
-                value={formData.notes}
-                onChange={(e) => handleChange('notes', e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            {/* Payment Summary */}
-            {formData.paymentAmount && loan && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Payment Amount:</span>
-                      <span className="font-semibold text-green-600">
-                        ${parseFloat(formData.paymentAmount).toFixed(2)}
-                      </span>
-                    </div>
-                    {formData.penaltyAmount && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Late Penalty:</span>
-                        <span className="font-semibold text-red-600">
-                          +${parseFloat(formData.penaltyAmount).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <span className="text-sm font-semibold">New Balance:</span>
-                      <span className="font-bold text-lg">
-                        ${calculateNewBalance()}
-                      </span>
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="loan_id">Loan ID</Label>
+            <Input
+              id="loan_id"
+              value={loan.id}
+              disabled
+              className="bg-muted font-mono"
+            />
           </div>
 
-          <DialogFooter>
+          <div className="space-y-2">
+            <Label htmlFor="member">Member</Label>
+            <Input
+              id="member"
+              value={`${loan.memberName} (${loan.memberId})`}
+              disabled
+              className="bg-muted"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="amount">Repayment Amount (KES)</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                KES
+              </span>
+              <Input
+                id="amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="pl-12"
+                placeholder="0.00"
+                required
+                min="0.01"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 py-2">
+            <Checkbox
+              id="savings"
+              checked={isFromSavings}
+              onCheckedChange={(checked) => setIsFromSavings(checked as boolean)}
+            />
+            <Label htmlFor="savings" className="text-sm font-normal cursor-pointer text-primary font-medium">
+              Pay from Savings Account
+            </Label>
+          </div>
+
+          {!isFromSavings && (
+            <div className="space-y-2">
+              <Label htmlFor="mode">Payment Mode</Label>
+              <Select value={mode} onValueChange={setMode}>
+                <SelectTrigger id="mode">
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="M-Pesa">M-Pesa</SelectItem>
+                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="Cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="reference">
+              Reference Number
+              {(mode !== 'Cash' && mode !== 'Savings') && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <Input
+              id="reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder={(mode === 'M-Pesa') ? "e.g. QWE123RTY" : "e.g. M-Pesa Code or Check No."}
+              required={mode !== 'Cash' && mode !== 'Savings'}
+            />
+          </div>
+
+          <DialogFooter className="pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
+              disabled={loading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? 'Recording...' : 'Record Payment'}
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Record Repayment
             </Button>
           </DialogFooter>
         </form>
@@ -268,3 +223,4 @@ export function RecordPaymentModal({ open, onOpenChange, loan }: RecordPaymentMo
     </Dialog>
   );
 }
+

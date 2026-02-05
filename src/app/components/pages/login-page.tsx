@@ -16,9 +16,9 @@ export function LoginPage({ onLogin, onForgotPassword, isLoading, companyName }:
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
-        const email = formData.get('email') as string;
+        const username = formData.get('username') as string;
         const password = formData.get('password') as string;
-        onLogin(email, password);
+        onLogin(username, password);
     };
 
     return (
@@ -32,15 +32,15 @@ export function LoginPage({ onLogin, onForgotPassword, isLoading, companyName }:
                     <div className="grid gap-4">
                         <div className="grid gap-2">
                             <Label className="text-sm font-medium" htmlFor="email">
-                                Email address
+                                Username
                             </Label>
                             <Input
-                                id="email"
-                                name="email"
+                                id="username"
+                                name="username"
                                 placeholder="name@example.com"
-                                type="email"
+                                type="text"
                                 autoCapitalize="none"
-                                autoComplete="email"
+                                autoComplete="username"
                                 autoCorrect="off"
                                 required
                                 className="h-11 text-sm px-4"

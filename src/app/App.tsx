@@ -4,6 +4,7 @@ import { DashboardLayout } from '@/app/components/dashboard-layout';
 import { DashboardPage } from '@/app/components/pages/dashboard-page';
 import { MembersPage } from '@/app/components/pages/members-page';
 import { LoansPage } from '@/app/components/pages/loans-page';
+import { LoanProductsPage } from '@/app/components/pages/loan-products-page';
 import { SavingsPage } from '@/app/components/pages/savings-page';
 import { TransactionsPage } from '@/app/components/pages/transactions-page';
 import { ExpensesPage } from '@/app/components/pages/expenses-page';
@@ -149,6 +150,8 @@ function AppContent() {
         return <MembersPage />;
       case 'loans':
         return <LoansPage />;
+      case 'loan-products':
+        return <LoanProductsPage />;
       case 'savings':
         return <SavingsPage />;
       case 'transactions':
@@ -156,7 +159,7 @@ function AppContent() {
       case 'expenses':
         return <ExpensesPage />;
       case 'reports':
-        return <ReportsPage />;
+        // return <ReportsPage />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -195,5 +198,6 @@ export default function App() {
       <Toaster position="top-center" expand={true} richColors />
       <HotToaster position="top-right" />
     </AuthProvider>
+    
   );
 }

@@ -42,6 +42,29 @@ export interface FinancialSummary {
     total_welfare_contribution: number;
 }
 
+export interface RepaymentScheduleItem {
+    payment_date: string;
+    amount: number;
+    principal: number;
+    interest: number;
+    principal_to_be_demanded: number;
+    interest_to_be_demanded: number;
+    balance_after: number;
+}
+
+export interface MemberLoan {
+    name: string;
+    loan_product: string;
+    loan_amount: number;
+    interest_rate: number;
+    repayment_period: number;
+    status: string;
+    total_repayable: number;
+    outstanding_balance: number;
+    repayment_schedule: RepaymentScheduleItem[];
+    creation: string;
+}
+
 export interface MemberFullDetails {
     registration_details: RegistrationDetails;
     financial_summary: FinancialSummary;
@@ -72,19 +95,67 @@ export const memberService = {
         return response.data;
     },
 
-    async payRegistrationFee(memberId: string, amount: number) {
-        const response = await api.post('/api/method/sacc_app.member_api.pay_registration_fee', {
-            member_id: memberId,
-            amount: amount
+    async payRegistrationFee(memberId: string, amount: number, mode: string, reference: string) {
+        const response = await api.post(`/api/method/sacc_app.api.pay_registration_fee`, {
+            member: memberId,
+            amount: amount,
+            mode: mode,
+            reference: reference
         });
         return response.data;
     },
 
-    async updateMemberStatus(memberId: string, status: string) {
-        const response = await api.post('/api/method/sacc_app.member_api.update_member_status', {
-            member_id: memberId,
-            status: status
+    async disableMember(memberId: string) {
+        const response = await api.post('/api/method/sacc_app.member_api.disable_member', {
+            member_id: memberId
         });
         return response.data;
+    },
+
+    async enableMember(memberId: string) {
+        const response = await api.post('/api/method/sacc_app.member_api.enable_member', {
+            member_id: memberId
+        });
+        return response.data;
+    },
+
+    async editMember(memberId: string, data: {
+        first_name: string;
+        last_name: string;
+        email: string;
+        phone: string;
+        national_id: string;
+        county: string;
+        sub_county: string;
+        ward: string;
+        village: string;
+        national_id_image?: string;
+        passport_photo?: string;
+    }) {
+        const response = await api.post('/api/method/sacc_app.member_api.edit_member', {
+            member_id: memberId,
+            ...data
+        });
+        return response.data;
+    },
+
+    async getMemberLoans(memberId: string) {
+        const response = await api.get('/api/method/sacc_app.api.get_member_loans', {
+            params: { member: memberId }
+        });
+        return response.data.message.data as MemberLoan[];
+    },
+
+    async getAllMembers() {
+        const response = await api.get('/api/method/sacc_app.api.get_all_members');
+        return response.data.message.data as {
+            name: string;
+            member_name: string;
+            phone: string;
+            email: string;
+            status: string;
+            national_id: string;
+            total_savings: number;
+        }[];
     }
 };

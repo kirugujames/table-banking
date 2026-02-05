@@ -23,6 +23,9 @@ import { AddMemberModal } from '@/app/components/add-member-modal';
 import { MemberDetailModal } from '@/app/components/member-detail-modal';
 import { PayRegistrationFeeModal } from '@/app/components/pay-registration-fee-modal';
 import { MemberStatusDialog } from '@/app/components/member-status-dialog';
+import { SaveModal } from '@/app/components/save-modal';
+import { WithdrawModal } from '@/app/components/withdraw-modal';
+import { MemberLoansModal } from '@/app/components/member-loans-modal';
 import { toast } from 'react-hot-toast';
 import {
   Dialog,
@@ -47,6 +50,9 @@ import {
   HandCoins,
   UserCheck,
   UserMinus as UserDisable,
+  PiggyBank,
+  ArrowDownToLine,
+  DollarSign,
 } from 'lucide-react';
 import { memberService, MemberStats, MemberListItem } from '@/app/lib/member-service';
 import {
@@ -69,10 +75,14 @@ export function MembersPage() {
   const [isPayFeeModalOpen, setIsPayFeeModalOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isLoansModalOpen, setIsLoansModalOpen] = useState(false);
 
   const [stats, setStats] = useState<MemberStats | null>(null);
   const [memberList, setMemberList] = useState<MemberListItem[]>([]);
   const [offset, setOffset] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const PAGE_SIZE = 7;
 
   useEffect(() => {
@@ -98,7 +108,11 @@ export function MembersPage() {
       }
     };
     fetchMembers();
-  }, [offset, searchQuery, statusFilter]);
+  }, [offset, searchQuery, statusFilter, refreshTrigger]);
+
+  const refreshMembers = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     setOffset(0);
@@ -284,6 +298,33 @@ export function MembersPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedMember(member);
+                                setIsLoansModalOpen(true);
+                              }}
+                            >
+                              <DollarSign className="mr-2 h-4 w-4" />
+                              View Loans
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedMember(member);
+                                setIsSaveModalOpen(true);
+                              }}
+                            >
+                              <PiggyBank className="mr-2 h-4 w-4" />
+                              Save
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedMember(member);
+                                setIsWithdrawModalOpen(true);
+                              }}
+                            >
+                              <ArrowDownToLine className="mr-2 h-4 w-4" />
+                              Withdraw
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedMember(member);
                                 setIsStatusDialogOpen(true);
                               }}
                             >
@@ -379,7 +420,7 @@ export function MembersPage() {
           // For now, let's just use the fact that these actions update the data.
           // I'll add a refresh trigger to the useEffect dependencies.
           // Let's modify the component state to include a refresh trigger.
-          setOffset(0); // This will trigger fetch
+          refreshMembers();
         }}
       />
 
@@ -387,14 +428,34 @@ export function MembersPage() {
         open={isPayFeeModalOpen}
         onOpenChange={setIsPayFeeModalOpen}
         member={selectedMember}
-        onSuccess={() => setOffset(0)} // Trigger refresh
+        onSuccess={refreshMembers}
+      />
+
+      <SaveModal
+        open={isSaveModalOpen}
+        onOpenChange={setIsSaveModalOpen}
+        member={selectedMember}
+        onSuccess={refreshMembers}
+      />
+
+      <WithdrawModal
+        open={isWithdrawModalOpen}
+        onOpenChange={setIsWithdrawModalOpen}
+        member={selectedMember}
+        onSuccess={refreshMembers}
       />
 
       <MemberStatusDialog
         open={isStatusDialogOpen}
         onOpenChange={setIsStatusDialogOpen}
         member={selectedMember}
-        onSuccess={() => setOffset(0)} // Trigger refresh
+        onSuccess={refreshMembers}
+      />
+
+      <MemberLoansModal
+        open={isLoansModalOpen}
+        onOpenChange={setIsLoansModalOpen}
+        member={selectedMember}
       />
     </div>
   );

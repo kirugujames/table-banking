@@ -18,43 +18,49 @@ import {
     SelectValue,
 } from '@/app/components/ui/select';
 import { toast } from 'react-hot-toast';
-import { memberService, MemberListItem } from '@/app/lib/member-service';
+import { MemberListItem } from '@/app/lib/member-service';
+import { savingsService } from '@/app/lib/savings-service';
 import { Loader2 } from 'lucide-react';
 
-interface PayRegistrationFeeModalProps {
+interface SaveModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     member: MemberListItem | null;
     onSuccess?: () => void;
 }
 
-export function PayRegistrationFeeModal({
+export function SaveModal({
     open,
     onOpenChange,
     member,
     onSuccess,
-}: PayRegistrationFeeModalProps) {
-    const [amount, setAmount] = useState('1000');
+}: SaveModalProps) {
+    const [amount, setAmount] = useState('');
     const [mode, setMode] = useState('Cash');
     const [reference, setReference] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handlePayment = async () => {
+    const handleSave = async () => {
         if (!member) return;
+
+        if (!amount || Number(amount) <= 0) {
+            toast.error('Please enter a valid amount');
+            return;
+        }
 
         setLoading(true);
         try {
-            await memberService.payRegistrationFee(member.name, Number(amount), mode, reference);
-            toast.success('Registration fee paid successfully!');
+            const response = await savingsService.recordDeposit(member.name, Number(amount), mode, reference);
+            toast.success(response.message?.message || 'Savings deposit recorded successfully!');
             onOpenChange(false);
+            setAmount('');
+            setReference('');
             onSuccess?.();
         } catch (error: any) {
-            console.error('Payment error:', error);
-            // Extract error message from API response
-            let errorMessage = 'Failed to process payment. Please try again.';
+            console.error('Save error:', error);
+            let errorMessage = 'Failed to record savings. Please try again.';
             if (error?.response?.data?.exception) {
                 const exceptionMsg = error.response.data.exception;
-                // Extract the actual error message after "ValidationError: "
                 const match = exceptionMsg.match(/ValidationError: (.+?)(?:"|$)/);
                 if (match && match[1]) {
                     errorMessage = match[1];
@@ -74,24 +80,29 @@ export function PayRegistrationFeeModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Pay Registration Fee</DialogTitle>
+                    <DialogTitle>Record Savings Deposit</DialogTitle>
                     <DialogDescription>
-                        Process registration fee payment for {member.member_name}.
+                        Record a savings deposit for {member.member_name}.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
-                    <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">Member ID:</span>
-                        <span className="font-mono">{member.name}</span>
+                    <div className="space-y-2">
+                        <Label htmlFor="member_field">Member</Label>
+                        <Input
+                            id="member_field"
+                            value={`${member.member_name} (${member.name})`}
+                            disabled
+                            className="bg-muted"
+                        />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="registration_amount">Registration Fee Amount (KES)</Label>
+                        <Label htmlFor="save_amount">Deposit Amount (KES)</Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
                                 KES
                             </span>
                             <Input
-                                id="registration_amount"
+                                id="save_amount"
                                 type="number"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
@@ -129,9 +140,9 @@ export function PayRegistrationFeeModal({
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                         Cancel
                     </Button>
-                    <Button onClick={handlePayment} disabled={loading}>
+                    <Button onClick={handleSave} disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirm Payment
+                        Record Deposit
                     </Button>
                 </DialogFooter>
             </DialogContent>

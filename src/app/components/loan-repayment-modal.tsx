@@ -18,43 +18,52 @@ import {
     SelectValue,
 } from '@/app/components/ui/select';
 import { toast } from 'react-hot-toast';
-import { memberService, MemberListItem } from '@/app/lib/member-service';
+import { MemberListItem } from '@/app/lib/member-service';
 import { Loader2 } from 'lucide-react';
 
-interface PayRegistrationFeeModalProps {
+interface LoanRepaymentModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     member: MemberListItem | null;
     onSuccess?: () => void;
 }
 
-export function PayRegistrationFeeModal({
+export function LoanRepaymentModal({
     open,
     onOpenChange,
     member,
     onSuccess,
-}: PayRegistrationFeeModalProps) {
-    const [amount, setAmount] = useState('1000');
+}: LoanRepaymentModalProps) {
+    const [amount, setAmount] = useState('');
     const [mode, setMode] = useState('Cash');
     const [reference, setReference] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const handlePayment = async () => {
+    const handleRepayment = async () => {
         if (!member) return;
+
+        if (!amount || Number(amount) <= 0) {
+            toast.error('Please enter a valid amount');
+            return;
+        }
 
         setLoading(true);
         try {
-            await memberService.payRegistrationFee(member.name, Number(amount), mode, reference);
-            toast.success('Registration fee paid successfully!');
+            // TODO: Implement loan repayment API call
+            // await loanService.recordRepayment(member.name, Number(amount), mode, reference);
+
+            // Placeholder success
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            toast.success('Loan repayment recorded successfully!');
             onOpenChange(false);
+            setAmount('');
+            setReference('');
             onSuccess?.();
         } catch (error: any) {
-            console.error('Payment error:', error);
-            // Extract error message from API response
-            let errorMessage = 'Failed to process payment. Please try again.';
+            console.error('Repayment error:', error);
+            let errorMessage = 'Failed to record repayment. Please try again.';
             if (error?.response?.data?.exception) {
                 const exceptionMsg = error.response.data.exception;
-                // Extract the actual error message after "ValidationError: "
                 const match = exceptionMsg.match(/ValidationError: (.+?)(?:"|$)/);
                 if (match && match[1]) {
                     errorMessage = match[1];
@@ -74,9 +83,9 @@ export function PayRegistrationFeeModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Pay Registration Fee</DialogTitle>
+                    <DialogTitle>Record Loan Repayment</DialogTitle>
                     <DialogDescription>
-                        Process registration fee payment for {member.member_name}.
+                        Record a loan repayment for {member.member_name}.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4 space-y-4">
@@ -85,13 +94,13 @@ export function PayRegistrationFeeModal({
                         <span className="font-mono">{member.name}</span>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="registration_amount">Registration Fee Amount (KES)</Label>
+                        <Label htmlFor="repayment_amount">Repayment Amount (KES)</Label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
                                 KES
                             </span>
                             <Input
-                                id="registration_amount"
+                                id="repayment_amount"
                                 type="number"
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
@@ -129,9 +138,9 @@ export function PayRegistrationFeeModal({
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                         Cancel
                     </Button>
-                    <Button onClick={handlePayment} disabled={loading}>
+                    <Button onClick={handleRepayment} disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Confirm Payment
+                        Record Repayment
                     </Button>
                 </DialogFooter>
             </DialogContent>

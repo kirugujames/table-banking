@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -23,91 +24,104 @@ import {
   Filter,
   Upload,
   Eye,
-  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react';
-
-const transactions = [
-  {
-    id: 'TXN-00501',
-    date: 'Jan 19, 2026',
-    time: '10:30 AM',
-    member: 'Sarah Johnson',
-    memberId: 'MEM-00045',
-    type: 'Savings Deposit',
-    category: 'Savings',
-    amount: 1200,
-    balanceAfter: 12450,
-    reference: 'SAV-DEP-456',
-    status: 'completed',
-  },
-  {
-    id: 'TXN-00502',
-    date: 'Jan 19, 2026',
-    time: '11:15 AM',
-    member: 'Michael Chen',
-    memberId: 'MEM-00082',
-    type: 'Loan Repayment',
-    category: 'Loan',
-    amount: 450,
-    balanceAfter: 8920,
-    reference: 'LOAN-REP-189',
-    status: 'completed',
-  },
-  {
-    id: 'TXN-00503',
-    date: 'Jan 19, 2026',
-    time: '02:20 PM',
-    member: 'Emily Brown',
-    memberId: 'MEM-00123',
-    type: 'Withdrawal',
-    category: 'Withdrawal',
-    amount: -800,
-    balanceAfter: 5340,
-    reference: 'WITH-342',
-    status: 'completed',
-  },
-  {
-    id: 'TXN-00504',
-    date: 'Jan 18, 2026',
-    time: '09:45 AM',
-    member: 'David Wilson',
-    memberId: 'MEM-00156',
-    type: 'Welfare Contribution',
-    category: 'Welfare',
-    amount: 50,
-    balanceAfter: 15780,
-    reference: 'WEL-CON-234',
-    status: 'completed',
-  },
-  {
-    id: 'TXN-00505',
-    date: 'Jan 18, 2026',
-    time: '03:30 PM',
-    member: 'Jennifer Lee',
-    memberId: 'MEM-00201',
-    type: 'Loan Disbursement',
-    category: 'Loan',
-    amount: -5000,
-    balanceAfter: 18200,
-    reference: 'LOAN-DIS-457',
-    status: 'pending',
-  },
-  {
-    id: 'TXN-00506',
-    date: 'Jan 17, 2026',
-    time: '01:15 PM',
-    member: 'Chris Anderson',
-    memberId: 'MEM-00178',
-    type: 'Savings Deposit',
-    category: 'Savings',
-    amount: 800,
-    balanceAfter: 9200,
-    reference: 'SAV-DEP-458',
-    status: 'completed',
-  },
-];
+import {
+  transactionService,
+  Transaction,
+  TransactionDashboardData,
+  TransactionPagination
+} from '@/app/lib/transaction-service';
+import { TransactionDetailModal } from '@/app/components/transaction-detail-modal';
 
 export function TransactionsPage() {
+  const [dashboardData, setDashboardData] = useState<TransactionDashboardData | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [pagination, setPagination] = useState<TransactionPagination | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
+
+  // Modal state
+  const [selectedTxnId, setSelectedTxnId] = useState<string | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Filters and Pagination state
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [status, setStatus] = useState('all-status');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 7;
+
+  const handleViewDetails = (id: string) => {
+    setSelectedTxnId(id);
+    setIsDetailModalOpen(true);
+  };
+
+  const fetchDashboardData = async () => {
+    try {
+      const data = await transactionService.getTransactionDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  const fetchTransactions = useCallback(async () => {
+    setTableLoading(true);
+    try {
+      const params = {
+        limit_start: (currentPage - 1) * pageSize,
+        limit_page_length: pageSize,
+        search: search || undefined,
+        category: category !== 'all' ? category : undefined,
+        status: status !== 'all-status' ? status : undefined,
+      };
+      const response = await transactionService.getAllTransactions(params);
+      setTransactions(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setTableLoading(false);
+      setLoading(false);
+    }
+  }, [currentPage, search, category, status]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+    setCurrentPage(1); // Reset to first page on search
+  };
+
+  const handleCategoryChange = (val: string) => {
+    setCategory(val);
+    setCurrentPage(1);
+  };
+
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setCurrentPage(1);
+  };
+
+  const totalPages = pagination ? Math.ceil(pagination.total / pageSize) : 0;
+
+  if (loading && !dashboardData) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -133,29 +147,37 @@ export function TransactionsPage() {
         <Card>
           <CardContent className="p-6">
             <div className="text-sm text-muted-foreground">Today's Transactions</div>
-            <div className="mt-2 text-2xl font-bold">48</div>
-            <div className="mt-1 text-xs text-green-600">+12 from yesterday</div>
+            <div className="mt-2 text-2xl font-bold">
+              {dashboardData?.today_transactions_amount.toLocaleString() || 0}
+            </div>
+            <div className="mt-1 text-xs text-green-600">Recent volume</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
             <div className="text-sm text-muted-foreground">Total In</div>
-            <div className="mt-2 text-2xl font-bold text-green-600">$15,240</div>
-            <div className="mt-1 text-xs text-muted-foreground">Today</div>
+            <div className="mt-2 text-2xl font-bold text-green-600">
+              KSH {dashboardData?.total_in.toLocaleString() || 0}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Cumulative</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
             <div className="text-sm text-muted-foreground">Total Out</div>
-            <div className="mt-2 text-2xl font-bold text-red-600">$8,350</div>
-            <div className="mt-1 text-xs text-muted-foreground">Today</div>
+            <div className="mt-2 text-2xl font-bold text-red-600">
+              KSH {dashboardData?.total_out.toLocaleString() || 0}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Cumulative</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
             <div className="text-sm text-muted-foreground">Net Flow</div>
-            <div className="mt-2 text-2xl font-bold text-primary">$6,890</div>
-            <div className="mt-1 text-xs text-muted-foreground">Today</div>
+            <div className="mt-2 text-2xl font-bold text-primary">
+              KSH {dashboardData?.net_flow.toLocaleString() || 0}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">Overall Balance</div>
           </CardContent>
         </Card>
       </div>
@@ -171,28 +193,32 @@ export function TransactionsPage() {
                 <Input
                   placeholder="Search transactions..."
                   className="pl-10"
+                  value={search}
+                  onChange={handleSearchChange}
                 />
               </div>
-              <Select defaultValue="all">
+              <Select value={category} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="savings">Savings</SelectItem>
-                  <SelectItem value="loan">Loan</SelectItem>
-                  <SelectItem value="welfare">Welfare</SelectItem>
-                  <SelectItem value="withdrawal">Withdrawal</SelectItem>
+                  <SelectItem value="Savings">Savings</SelectItem>
+                  <SelectItem value="Loan Repayment">Loan Repayment</SelectItem>
+                  <SelectItem value="Registration Fee">Registration Fee</SelectItem>
+                  <SelectItem value="Share Capital">Share Capital</SelectItem>
+                  <SelectItem value="Welfare">Welfare</SelectItem>
                 </SelectContent>
               </Select>
-              <Select defaultValue="all-status">
+              <Select value={status} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-status">All Status</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="icon">
@@ -202,78 +228,155 @@ export function TransactionsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
+            {tableLoading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Transaction ID</TableHead>
-                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Member</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Balance After</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((txn) => (
-                  <TableRow key={txn.id}>
-                    <TableCell className="font-mono text-sm font-medium">{txn.id}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{txn.date}</div>
-                        <div className="text-muted-foreground">{txn.time}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{txn.member}</div>
-                        <div className="text-sm text-muted-foreground">{txn.memberId}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm">{txn.type}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{txn.category}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          txn.amount > 0
-                            ? 'font-semibold text-green-600 dark:text-green-400'
-                            : 'font-semibold text-red-600 dark:text-red-400'
-                        }
-                      >
-                        {txn.amount > 0 ? '+' : ''}${Math.abs(txn.amount).toLocaleString()}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      ${txn.balanceAfter.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {txn.reference}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={txn.status === 'completed' ? 'default' : 'secondary'}
-                      >
-                        {txn.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                {transactions.length > 0 ? (
+                  transactions.map((txn) => (
+                    <TableRow key={txn.transaction_id}>
+                      <TableCell className="font-mono text-sm font-medium">{txn.transaction_id}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{txn.date}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{txn.member_name}</div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <Badge variant={txn.type === 'In' ? 'default' : txn.type === 'Out' ? 'destructive' : 'secondary'}>
+                          {txn.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{txn.category}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={
+                            txn.type === 'In'
+                              ? 'font-semibold text-green-600 dark:text-green-400'
+                              : txn.type === 'Out'
+                                ? 'font-semibold text-red-600 dark:text-red-400'
+                                : 'font-semibold'
+                          }
+                        >
+                          {txn.type === 'In' ? '+' : txn.type === 'Out' ? '-' : ''}KSH {Math.abs(txn.amount).toLocaleString()}
+                        </span>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate font-mono text-sm text-muted-foreground" title={txn.reference}>
+                        {txn.reference}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={txn.status === 'Completed' ? 'default' : 'secondary'}
+                        >
+                          {txn.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleViewDetails(txn.transaction_id)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-24 text-center">
+                      No transactions found.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          {pagination && pagination.total > 0 && (
+            <div className="mt-4 flex items-center justify-between border-t pt-4">
+              <div className="text-sm text-muted-foreground">
+                Showing{' '}
+                <span className="font-medium">
+                  {Math.min((currentPage - 1) * pageSize + 1, pagination.total)}
+                </span>{' '}
+                to{' '}
+                <span className="font-medium">
+                  {Math.min(currentPage * pageSize, pagination.total)}
+                </span>{' '}
+                of <span className="font-medium">{pagination.total}</span> results
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || tableLoading}
+                >
+                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    // Simple pagination logic to show around current page
+                    let pageNum = currentPage;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (currentPage <= 3) pageNum = i + 1;
+                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = currentPage - 2 + i;
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? 'default' : 'outline'}
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setCurrentPage(pageNum)}
+                        disabled={tableLoading}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || tableLoading}
+                >
+                  Next
+                  <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+      <TransactionDetailModal
+        open={isDetailModalOpen}
+        onOpenChange={setIsDetailModalOpen}
+        transactionId={selectedTxnId}
+      />
     </div>
   );
 }
+

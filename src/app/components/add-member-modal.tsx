@@ -49,21 +49,47 @@ export function AddMemberModal({ open, onOpenChange, initialData, onSuccess }: A
   useEffect(() => {
     if (initialData && open) {
       // If we have initialData, we are in Edit mode
-      // Mapping names correctly if they differ
-      const names = initialData.member_name?.split(' ') || ['', ''];
-      setFormData({
-        first_name: names[0] || '',
-        last_name: names.slice(1).join(' ') || '',
-        email: initialData.email || '',
-        phone: initialData.phone || '',
-        national_id: initialData.national_id || '',
-        county: initialData.county || '',
-        sub_county: initialData.sub_county || '',
-        ward: initialData.ward || '',
-        village: initialData.village || '',
-        national_id_image: initialData.national_id_image || '',
-        passport_photo: initialData.passport_photo || '',
-      });
+      // Fetch full member details to populate all fields
+      const fetchMemberDetails = async () => {
+        try {
+          const details = await memberService.getMemberFullDetails(initialData.name);
+          const reg = details.registration_details;
+
+          setFormData({
+            first_name: reg.first_name || '',
+            last_name: reg.last_name || '',
+            email: reg.email || '',
+            phone: reg.phone || '',
+            national_id: reg.national_id || '',
+            county: reg.county || '',
+            sub_county: reg.sub_county || '',
+            ward: reg.ward || '',
+            village: reg.village || '',
+            national_id_image: reg.national_id_image || '',
+            passport_photo: reg.passport_photo || '',
+          });
+
+          // Load sub-counties and wards if county and sub_county are present
+          if (reg.county) {
+            try {
+              const subCountiesData = await locationService.getSubCounties(reg.county);
+              setSubCounties(subCountiesData);
+
+              if (reg.sub_county) {
+                const wardsData = await locationService.getWards(reg.sub_county);
+                setWards(wardsData);
+              }
+            } catch (error) {
+              console.error('Error loading location data:', error);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching member details:', error);
+          toast.error('Failed to load member details');
+        }
+      };
+
+      fetchMemberDetails();
     } else if (open) {
       // Clear for new member
       setFormData({
@@ -79,6 +105,8 @@ export function AddMemberModal({ open, onOpenChange, initialData, onSuccess }: A
         national_id_image: '',
         passport_photo: '',
       });
+      setSubCounties([]);
+      setWards([]);
     }
   }, [initialData, open]);
 
@@ -151,8 +179,16 @@ export function AddMemberModal({ open, onOpenChange, initialData, onSuccess }: A
     setIsSubmitting(true);
 
     try {
-      await memberService.createMemberApplication(formData);
-      toast.success('Member application created successfully!');
+      if (initialData) {
+        // Edit mode
+        await memberService.editMember(initialData.name, formData);
+        toast.success('Member details updated successfully!');
+      } else {
+        // Create mode
+        await memberService.createMemberApplication(formData);
+        toast.success('Member application created successfully!');
+      }
+
       setIsSubmitting(false);
       onOpenChange(false);
       onSuccess?.();
@@ -172,8 +208,10 @@ export function AddMemberModal({ open, onOpenChange, initialData, onSuccess }: A
         passport_photo: '',
       });
     } catch (error: any) {
-      console.error('Error creating member application:', error);
-      let errorMessage = 'An error occurred while creating member application';
+      console.error('Error submitting member data:', error);
+      let errorMessage = initialData
+        ? 'An error occurred while updating member details'
+        : 'An error occurred while creating member application';
 
       const errorData = error.response?.data;
       if (errorData) {
@@ -210,7 +248,7 @@ export function AddMemberModal({ open, onOpenChange, initialData, onSuccess }: A
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl lg:max-w-[50vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl lg:max-w-[50vw] max-h-[90vh] overflow-y-auto [&>button:last-child]:top-6 [&>button:last-child]:right-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -22,6 +21,7 @@ import { StatusBadge } from '@/app/components/status-badge';
 import { StatCard } from '@/app/components/stat-card';
 import { LoanApplicationModal } from '@/app/components/loan-application-modal';
 import { RecordPaymentModal } from '@/app/components/record-payment-modal';
+import { LoanDetailsModal } from '@/app/components/loan-details-modal';
 import {
   Search,
   Filter,
@@ -34,7 +34,7 @@ import {
   CreditCard,
   TrendingUp,
   AlertCircle,
-  DollarSign,
+  Banknote,
 } from 'lucide-react';
 import {
   Select,
@@ -43,113 +43,91 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/app/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 
-const loans = [
-  {
-    id: 'LN-001',
-    memberId: 'MEM-00045',
-    memberName: 'Alice Martinez',
-    amount: '$15,000',
-    interestRate: '12%',
-    status: 'active' as const,
-    approvalProgress: 100,
-    purpose: 'Business Expansion',
-    disbursementDate: 'Dec 15, 2025',
-    dueDate: 'Dec 15, 2026',
-    repaidAmount: '$6,500',
-    repaymentProgress: 43,
-  },
-  {
-    id: 'LN-002',
-    memberId: 'MEM-00082',
-    memberName: 'Robert Taylor',
-    amount: '$8,500',
-    interestRate: '10%',
-    status: 'pending' as const,
-    approvalProgress: 60,
-    purpose: 'Education',
-    disbursementDate: '-',
-    dueDate: '-',
-    repaidAmount: '-',
-    repaymentProgress: 0,
-  },
-  {
-    id: 'LN-003',
-    memberId: 'MEM-00123',
-    memberName: 'Jennifer Lee',
-    amount: '$12,000',
-    interestRate: '12%',
-    status: 'defaulted' as const,
-    approvalProgress: 100,
-    purpose: 'Personal',
-    disbursementDate: 'Aug 10, 2025',
-    dueDate: 'Aug 10, 2026',
-    repaidAmount: '$3,200',
-    repaymentProgress: 27,
-  },
-  {
-    id: 'LN-004',
-    memberId: 'MEM-00156',
-    memberName: 'Chris Anderson',
-    amount: '$20,000',
-    interestRate: '11%',
-    status: 'approved' as const,
-    approvalProgress: 100,
-    purpose: 'Home Improvement',
-    disbursementDate: 'Jan 22, 2026',
-    dueDate: '-',
-    repaidAmount: '-',
-    repaymentProgress: 0,
-  },
-  {
-    id: 'LN-005',
-    memberId: 'MEM-00201',
-    memberName: 'Patricia Brown',
-    amount: '$5,000',
-    interestRate: '9%',
-    status: 'completed' as const,
-    approvalProgress: 100,
-    purpose: 'Emergency',
-    disbursementDate: 'Mar 1, 2025',
-    dueDate: 'Sep 1, 2025',
-    repaidAmount: '$5,450',
-    repaymentProgress: 100,
-  },
-  {
-    id: 'LN-006',
-    memberId: 'MEM-00178',
-    memberName: 'Daniel Kim',
-    amount: '$18,000',
-    interestRate: '12%',
-    status: 'draft' as const,
-    approvalProgress: 0,
-    purpose: 'Business',
-    disbursementDate: '-',
-    dueDate: '-',
-    repaidAmount: '-',
-    repaymentProgress: 0,
-  },
-];
+import { useEffect, useState } from 'react';
+import { loanService, type LoanDashboardStats } from '@/app/lib/loan-service';
+import { toast } from 'react-hot-toast';
+
+
 
 export function LoansPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedLoan, setSelectedLoan] = useState<typeof loans[0] | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState<any>(null);
+  const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
+  const [dashboardStats, setDashboardStats] = useState<LoanDashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [pagination, setPagination] = useState<any>({ limit_start: 0, limit_page_length: 7, total: 0 });
+  const [isAppsLoading, setIsAppsLoading] = useState(false);
 
-  const filteredLoans = loans.filter((loan) => {
-    const matchesSearch =
-      loan.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loan.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loan.memberId.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus =
-      statusFilter === 'all' || loan.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [statusFilter, searchQuery, pagination.limit_start]);
+
+  const fetchDashboardStats = async () => {
+    try {
+      setIsLoading(true);
+      const data = await loanService.getLoanDashboard();
+      setDashboardStats(data);
+    } catch (error) {
+      console.error('Error fetching loan dashboard stats:', error);
+      toast.error('Failed to load loan statistics');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchApplications = async () => {
+    try {
+      setIsAppsLoading(true);
+      const isMemberId = searchQuery.startsWith('MEM-');
+      const isLoanId = searchQuery.startsWith('LN-');
+
+      const params: any = {
+        limit_start: pagination.limit_start,
+        limit_page_length: pagination.limit_page_length,
+      };
+
+      if (statusFilter !== 'all') {
+        params.status = statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1);
+      }
+      if (searchQuery) {
+        if (isMemberId) params.member_id = searchQuery;
+        else if (isLoanId) params.loan_id = searchQuery;
+        else params.member_name = searchQuery;
+      }
+
+      const response = await loanService.getLoanApplications(params);
+      setApplications(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error('Error fetching loan applications:', error);
+      toast.error('Failed to load loan applications');
+    } finally {
+      setIsAppsLoading(false);
+    }
+  };
+
+  const handlePageChange = (newStart: number) => {
+    setPagination((prev: any) => ({ ...prev, limit_start: newStart }));
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+    }).format(amount);
+  };
+
+
 
   return (
     <div className="space-y-6">
@@ -169,199 +147,230 @@ export function LoansPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Applications Pending"
-          value="28"
+          value={isLoading ? "..." : dashboardStats?.total_pending_applications.toString() || "0"}
           icon={AlertCircle}
           iconColor="text-amber-600"
           iconBgColor="bg-amber-100 dark:bg-amber-900/20"
         />
         <StatCard
           title="Loans Active"
-          value="342"
-          change={{ value: '+8%', trend: 'up' }}
+          value={isLoading ? "..." : dashboardStats?.active_loans_count.toString() || "0"}
           icon={CreditCard}
           iconColor="text-primary"
           iconBgColor="bg-primary/10"
         />
         <StatCard
-          title="Amount Disbursed"
-          value="$2.8M"
-          change={{ value: '+12%', trend: 'up' }}
-          icon={DollarSign}
+          title="Total Active Amount"
+          value={isLoading ? "..." : formatCurrency(dashboardStats?.active_loans_amount || 0)}
+          icon={Banknote}
           iconColor="text-secondary"
           iconBgColor="bg-secondary/10"
         />
         <StatCard
           title="Default Rate"
-          value="2.4%"
-          change={{ value: '-0.5%', trend: 'down' }}
+          value={isLoading ? "..." : `${(dashboardStats?.default_rate || 0).toFixed(1)}%`}
           icon={TrendingUp}
           iconColor="text-red-600"
           iconBgColor="bg-red-100 dark:bg-red-900/20"
         />
       </div>
 
-      {/* Loan Status Tabs */}
-      <Tabs defaultValue="all" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="all">All Loans</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="defaulted">Defaulted</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-        </TabsList>
 
-        <TabsContent value="all" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle>All Loan Applications</CardTitle>
-                <div className="flex flex-wrap gap-2">
-                  <div className="relative flex-1 sm:w-80">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search loans..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="defaulted">Defaulted</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="icon">
-                    <Filter className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>All Loan Applications</CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 sm:w-80">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search loans..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Loan ID</TableHead>
-                      <TableHead>Member</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Interest Rate</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Purpose</TableHead>
-                      <TableHead>Repayment Progress</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLoans.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No loans found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredLoans.map((loan) => (
-                        <TableRow key={loan.id}>
-                          <TableCell className="font-mono text-sm font-medium">{loan.id}</TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{loan.memberName}</div>
-                              <div className="text-sm text-muted-foreground">{loan.memberId}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-semibold">{loan.amount}</TableCell>
-                          <TableCell>{loan.interestRate}</TableCell>
-                          <TableCell>
-                            <StatusBadge status={loan.status} />
-                          </TableCell>
-                          <TableCell className="text-sm">{loan.purpose}</TableCell>
-                          <TableCell>
-                            <div className="space-y-2 min-w-[150px]">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">
-                                  {loan.repaymentProgress}%
-                                </span>
-                                <span className="font-medium">{loan.repaidAmount}</span>
-                              </div>
-                              <Progress value={loan.repaymentProgress} className="h-2" />
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View Details
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="defaulted">Defaulted</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="icon">
+                <Filter className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon">
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Loan ID</TableHead>
+                  <TableHead>Member</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Interest Rate</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Purpose</TableHead>
+                  <TableHead>Repayment Progress</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isAppsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span>Loading applications...</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : applications.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      No loans found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  applications.map((loan) => (
+                    <TableRow key={loan.loan_id}>
+                      <TableCell className="font-mono text-sm font-medium">{loan.loan_id}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{loan.member_name || 'N/A'}</div>
+                          <div className="text-sm text-muted-foreground">{loan.member_id}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(loan.amount_applied)}</TableCell>
+                      <TableCell>{loan.interest_rate}%</TableCell>
+                      <TableCell>
+                        <StatusBadge status={loan.status.toLowerCase()} />
+                      </TableCell>
+                      <TableCell className="text-sm">{loan.purpose || 'N/A'}</TableCell>
+                      <TableCell>
+                        <div className="space-y-2 min-w-[150px]">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              Progress: {loan.payment_progress}%
+                            </span>
+                          </div>
+                          <Progress value={loan.payment_progress} className="h-2" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedLoanId(loan.loan_id);
+                                setIsDetailsModalOpen(true);
+                              }}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            {loan.status.toLowerCase() === 'pending' && (
+                              <>
+                                <DropdownMenuItem className="text-green-600">
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Approve Loan
                                 </DropdownMenuItem>
-                                {loan.status === 'pending' && (
-                                  <>
-                                    <DropdownMenuItem className="text-green-600">
-                                      <CheckCircle className="mr-2 h-4 w-4" />
-                                      Approve Loan
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem className="text-red-600">
-                                      <XCircle className="mr-2 h-4 w-4" />
-                                      Reject Loan
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {loan.status === 'active' && (
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedLoan(loan);
-                                      setIsPaymentModalOpen(true);
-                                    }}
-                                  >
-                                    <DollarSign className="mr-2 h-4 w-4" />
-                                    Record Payment
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                                <DropdownMenuItem className="text-red-600">
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Reject Loan
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {loan.status.toLowerCase() === 'active' && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedLoan(loan);
+                                  setIsPaymentModalOpen(true);
+                                }}
+                              >
+                                <Banknote className="mr-2 h-4 w-4" />
+                                Pay Loan
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {pagination.limit_start + 1} to {Math.min(pagination.limit_start + pagination.limit_page_length, pagination.total)} of {pagination.total} entries
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.limit_start === 0 || isAppsLoading}
+                onClick={() => handlePageChange(Math.max(0, pagination.limit_start - pagination.limit_page_length))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.limit_start + pagination.limit_page_length >= pagination.total || isAppsLoading}
+                onClick={() => handlePageChange(pagination.limit_start + pagination.limit_page_length)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
 
       {/* Modals */}
-      <LoanApplicationModal 
-        open={isLoanModalOpen} 
+      <LoanApplicationModal
+        open={isLoanModalOpen}
         onOpenChange={setIsLoanModalOpen}
       />
-      <RecordPaymentModal 
-        open={isPaymentModalOpen} 
+      <LoanDetailsModal
+        open={isDetailsModalOpen}
+        onOpenChange={setIsDetailsModalOpen}
+        loanId={selectedLoanId}
+      />
+      <RecordPaymentModal
+        open={isPaymentModalOpen}
         onOpenChange={setIsPaymentModalOpen}
+        onSuccess={() => {
+          fetchApplications();
+          fetchDashboardStats();
+        }}
         loan={selectedLoan ? {
-          id: selectedLoan.id,
-          memberName: selectedLoan.memberName,
-          memberId: selectedLoan.memberId,
-          loanAmount: selectedLoan.amount,
-          outstandingBalance: selectedLoan.amount, // You would calculate this in real scenario
-          nextPaymentDue: selectedLoan.dueDate,
-          monthlyPayment: '$650', // You would calculate this in real scenario
+          id: selectedLoan.loan_id,
+          memberName: selectedLoan.member_name,
+          memberId: selectedLoan.member_id,
+          loanAmount: formatCurrency(selectedLoan.total_repayable || selectedLoan.amount_applied),
+          outstandingBalance: formatCurrency(selectedLoan.outstanding_balance || 0),
         } : null}
       />
     </div>

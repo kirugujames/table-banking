@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,251 +18,208 @@ import {
   SelectValue,
 } from '@/app/components/ui/select';
 import { Textarea } from '@/app/components/ui/textarea';
-import { Switch } from '@/app/components/ui/switch';
-import { Receipt, Loader2, Upload } from 'lucide-react';
+import { Receipt, Loader2, Banknote } from 'lucide-react';
+import { expenseService } from '@/app/lib/expense-service';
+import { toast } from 'react-hot-toast';
 
 interface RecordExpenseModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function RecordExpenseModal({ open, onOpenChange }: RecordExpenseModalProps) {
+export function RecordExpenseModal({ open, onOpenChange, onSuccess }: RecordExpenseModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expenseAccounts, setExpenseAccounts] = useState<{ name: string; account_name: string }[]>([]);
   const [formData, setFormData] = useState({
-    category: '',
+    expense_account: '',
     amount: '',
-    vendor: '',
+    vendor_name: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
-    paymentMethod: '',
-    referenceNumber: '',
-    isRecurring: false,
-    receiptFile: null as File | null,
+    mode_of_payment: 'Cash',
   });
 
-  const expenseCategories = [
-    'Salaries',
-    'Rent',
-    'Utilities',
-    'Marketing',
-    'Supplies',
-    'Insurance',
-    'Maintenance',
-    'Transportation',
-    'Legal & Professional',
-    'Other',
-  ];
+  useEffect(() => {
+    if (open) {
+      fetchAccounts();
+    }
+  }, [open]);
 
-  const paymentMethods = [
-    'Cash',
-    'Bank Transfer',
-    'Cheque',
-    'Mobile Money',
-    'Credit Card',
-  ];
-
-  const handleChange = (field: string, value: string | boolean | File | null) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const fetchAccounts = async () => {
+    try {
+      const accounts = await expenseService.getExpenseAccounts();
+      setExpenseAccounts(accounts);
+    } catch (error) {
+      console.error('Error fetching expense accounts:', error);
+      toast.error('Failed to load expense categories');
+    }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    handleChange('receiptFile', file);
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    if (!formData.expense_account) {
+      toast.error('Please select an expense account');
+      return;
+    }
+
     setIsSubmitting(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    console.log('New expense recorded:', formData);
-    setIsSubmitting(false);
-    onOpenChange(false);
-    
-    // Reset form
-    setFormData({
-      category: '',
-      amount: '',
-      vendor: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      paymentMethod: '',
-      referenceNumber: '',
-      isRecurring: false,
-      receiptFile: null,
-    });
+    try {
+      const result = await expenseService.recordExpense({
+        amount: Number(formData.amount),
+        expense_account: formData.expense_account,
+        description: formData.description,
+        mode_of_payment: formData.mode_of_payment,
+        vendor_name: formData.vendor_name,
+      });
+
+      if (result.status === 'success') {
+        toast.success(result.message || 'Expense recorded successfully');
+        onOpenChange(false);
+        onSuccess?.();
+
+        // Reset form
+        setFormData({
+          expense_account: '',
+          amount: '',
+          vendor_name: '',
+          description: '',
+          mode_of_payment: 'Cash',
+        });
+      }
+    } catch (error: any) {
+      console.error('Error recording expense:', error);
+      const errorMsg = error.response?.data?.message || 'Failed to record expense';
+      toast.error(errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl lg:max-w-[50vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+            <Receipt className="h-6 w-6 text-primary" />
             Record New Expense
           </DialogTitle>
           <DialogDescription>
-            Enter the expense details to record it in the system.
+            Enter the details below to record a new business expense.
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-6 py-4">
-            {/* Basic Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Expense Category *</Label>
-                <Select value={formData.category} onValueChange={(value) => handleChange('category', value)}>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {expenseCategories.map((cat) => (
-                      <SelectItem key={cat} value={cat.toLowerCase()}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount *</Label>
+        <form onSubmit={handleSubmit} className="space-y-6 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Category / Account */}
+            <div className="space-y-2">
+              <Label htmlFor="expense_account" className="text-sm font-semibold">Expense Category *</Label>
+              <Select
+                value={formData.expense_account}
+                onValueChange={(value) => handleChange('expense_account', value)}
+              >
+                <SelectTrigger id="expense_account" className="h-11">
+                  <SelectValue placeholder="Select expense category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseAccounts.map((acc) => (
+                    <SelectItem key={acc.name} value={acc.account_name}>
+                      {acc.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-sm font-semibold">Amount (KES) *</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">KES</span>
                 <Input
                   id="amount"
                   type="number"
                   placeholder="0.00"
+                  className="pl-12 h-11"
                   value={formData.amount}
                   onChange={(e) => handleChange('amount', e.target.value)}
                   required
-                  min="0"
+                  min="0.01"
                   step="0.01"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="vendor">Vendor/Payee *</Label>
-                <Input
-                  id="vendor"
-                  placeholder="Enter vendor name"
-                  value={formData.vendor}
-                  onChange={(e) => handleChange('vendor', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Expense Date *</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleChange('date', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Enter a detailed description of the expense"
-                  value={formData.description}
-                  onChange={(e) => handleChange('description', e.target.value)}
-                  required
-                  rows={3}
-                />
-              </div>
             </div>
 
-            {/* Payment Information */}
-            <div>
-              <h3 className="text-sm font-semibold mb-3">Payment Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paymentMethod">Payment Method *</Label>
-                  <Select 
-                    value={formData.paymentMethod} 
-                    onValueChange={(value) => handleChange('paymentMethod', value)}
-                  >
-                    <SelectTrigger id="paymentMethod">
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentMethods.map((method) => (
-                        <SelectItem key={method} value={method.toLowerCase().replace(' ', '-')}>
-                          {method}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="referenceNumber">Reference/Transaction Number</Label>
-                  <Input
-                    id="referenceNumber"
-                    placeholder="Enter reference number"
-                    value={formData.referenceNumber}
-                    onChange={(e) => handleChange('referenceNumber', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Receipt Upload */}
+            {/* Vendor */}
             <div className="space-y-2">
-              <Label htmlFor="receipt">Upload Receipt/Invoice</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="receipt"
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={handleFileChange}
-                  className="flex-1"
-                />
-                <Upload className="h-4 w-4 text-muted-foreground" />
-              </div>
-              {formData.receiptFile && (
-                <p className="text-xs text-muted-foreground">
-                  Selected: {formData.receiptFile.name}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Accepted formats: JPG, PNG, PDF (Max 5MB)
-              </p>
+              <Label htmlFor="vendor_name" className="text-sm font-semibold">Vendor / Payee *</Label>
+              <Input
+                id="vendor_name"
+                placeholder="Who was paid?"
+                className="h-11"
+                value={formData.vendor_name}
+                onChange={(e) => handleChange('vendor_name', e.target.value)}
+                required
+              />
             </div>
 
-            {/* Recurring Expense */}
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="isRecurring">Recurring Expense</Label>
-                <p className="text-sm text-muted-foreground">
-                  Mark if this is a recurring monthly expense
-                </p>
-              </div>
-              <Switch
-                id="isRecurring"
-                checked={formData.isRecurring}
-                onCheckedChange={(checked) => handleChange('isRecurring', checked)}
+            {/* Payment Method */}
+            <div className="space-y-2">
+              <Label htmlFor="mode_of_payment" className="text-sm font-semibold">Payment Mode *</Label>
+              <Select
+                value={formData.mode_of_payment}
+                onValueChange={(value) => handleChange('mode_of_payment', value)}
+              >
+                <SelectTrigger id="mode_of_payment" className="h-11">
+                  <SelectValue placeholder="How was it paid?" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="M-Pesa">M-Pesa</SelectItem>
+                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="Cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="description" className="text-sm font-semibold">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Describe the purpose of this expense..."
+                className="min-h-[100px] resize-none"
+                value={formData.description}
+                onChange={(e) => handleChange('description', e.target.value)}
+                required
               />
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0 mt-6 border-t pt-6">
             <Button
               type="button"
               variant="outline"
+              className="h-11 px-8"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? 'Recording...' : 'Record Expense'}
+            <Button type="submit" className="h-11 px-8 gap-2" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Banknote className="h-4 w-4" />
+              )}
+              {isSubmitting ? 'Recording...' : 'Save Expense'}
             </Button>
           </DialogFooter>
         </form>

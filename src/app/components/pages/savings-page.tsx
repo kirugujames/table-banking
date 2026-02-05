@@ -35,6 +35,11 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { useEffect, useState, useCallback } from 'react';
+import { savingsService, SavingsSummary, TopSaver, SavingsTrendItem, SavingsTransaction, Pagination } from '@/app/lib/savings-service';
+import { toast } from 'react-hot-toast';
+import { Loader2, ChevronLeft, ChevronRight, PiggyBank as PiggyBankIcon } from 'lucide-react';
+import { GlobalSaveModal } from '@/app/components/global-save-modal';
 
 const monthlyData = [
   { month: 'Jul', deposits: 48000, withdrawals: 12000 },
@@ -109,15 +114,76 @@ const transactions = [
   },
 ];
 
-const topSavers = [
-  { rank: 1, name: 'Robert Taylor', amount: '$28,450', change: '+$1,200' },
-  { rank: 2, name: 'Sarah Johnson', amount: '$25,120', change: '+$950' },
-  { rank: 3, name: 'Michael Chen', amount: '$22,890', change: '+$800' },
-  { rank: 4, name: 'David Wilson', amount: '$21,340', change: '+$1,100' },
-  { rank: 5, name: 'Alice Martinez', amount: '$19,750', change: '+$600' },
-];
-
 export function SavingsPage() {
+  const [summary, setSummary] = useState<SavingsSummary | null>(null);
+  const [topSavers, setTopSavers] = useState<TopSaver[]>([]);
+  const [trendData, setTrendData] = useState<SavingsTrendItem[]>([]);
+  const [transactions, setTransactions] = useState<SavingsTransaction[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ limit_start: 0, limit_page_length: 7, total: 0 });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isTransactionsLoading, setIsTransactionsLoading] = useState(false);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [summaryData, topSaversData, trendDataResponse] = await Promise.all([
+        savingsService.getSavingsDashboard(),
+        savingsService.getTopSavers(),
+        savingsService.getSavingsVsExpense()
+      ]);
+      setSummary(summaryData);
+      setTopSavers(topSaversData);
+      setTrendData(trendDataResponse);
+    } catch (error) {
+      console.error('Error fetching savings data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchTransactions = useCallback(async (start = 0, search = '') => {
+    try {
+      setIsTransactionsLoading(true);
+      const { data, pagination: pagData } = await savingsService.getSavingsTransactions({
+        limit_start: start,
+        limit_page_length: 7,
+        searchTerm: search
+      });
+      setTransactions(data);
+      setPagination(pagData);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast.error('Failed to load transactions');
+    } finally {
+      setIsTransactionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    fetchTransactions(0, '');
+  }, [fetchData, fetchTransactions]);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    // Debounce search if needed, but for now just call
+    fetchTransactions(0, value);
+  };
+
+  const handlePageChange = (newStart: number) => {
+    fetchTransactions(newStart, searchTerm);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return 'KSh ' + new Intl.NumberFormat('en-KE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -126,9 +192,9 @@ export function SavingsPage() {
           <h1 className="text-3xl font-bold">Savings & Transactions</h1>
           <p className="text-muted-foreground">Monitor savings and transaction activity</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2 px-6 h-12 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20" onClick={() => setIsRecordModalOpen(true)}>
           <Plus className="h-4 w-4" />
-          Record Transaction
+          Record Saving
         </Button>
       </div>
 
@@ -136,7 +202,7 @@ export function SavingsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Savings"
-          value="$4.2M"
+          value={isLoading ? '...' : formatCurrency(summary?.total_savings || 0)}
           change={{ value: '+15%', trend: 'up' }}
           icon={PiggyBank}
           iconColor="text-primary"
@@ -144,7 +210,7 @@ export function SavingsPage() {
         />
         <StatCard
           title="Monthly Deposits"
-          value="$71,000"
+          value={isLoading ? '...' : formatCurrency(summary?.monthly_deposits || 0)}
           change={{ value: '+6%', trend: 'up' }}
           icon={ArrowUpCircle}
           iconColor="text-secondary"
@@ -152,7 +218,7 @@ export function SavingsPage() {
         />
         <StatCard
           title="Monthly Withdrawals"
-          value="$18,000"
+          value={isLoading ? '...' : formatCurrency(summary?.monthly_withdrawals || 0)}
           change={{ value: '+12%', trend: 'up' }}
           icon={ArrowDownCircle}
           iconColor="text-amber-600"
@@ -160,7 +226,7 @@ export function SavingsPage() {
         />
         <StatCard
           title="Active Savers"
-          value="1,156"
+          value={isLoading ? '...' : (summary?.active_savers_count || 0).toString()}
           change={{ value: '+8%', trend: 'up' }}
           icon={Users}
           iconColor="text-purple-600"
@@ -177,14 +243,14 @@ export function SavingsPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthlyData}>
+              <BarChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="deposits" fill="#10B981" name="Deposits" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="withdrawals" fill="#F59E0B" name="Withdrawals" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="savings" fill="#10B981" name="Savings" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" fill="#EF4444" name="Expense" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -197,18 +263,24 @@ export function SavingsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {topSavers.map((saver) => (
-                <div key={saver.rank} className="flex items-center gap-3">
+              {topSavers.length > 0 ? topSavers.map((saver, index) => (
+                <div key={saver.name} className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                    {saver.rank}
+                    {index + 1}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{saver.name}</p>
-                    <p className="text-xs text-muted-foreground">{saver.change} this month</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{saver.member_name}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                      {formatCurrency(saver.current_month_savings)} this month
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold">{saver.amount}</p>
+                  <p className="text-sm font-black">{formatCurrency(saver.total_savings)}</p>
                 </div>
-              ))}
+              )) : (
+                <div className="py-12 text-center text-muted-foreground text-sm italic">
+                  No top savers found
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -225,6 +297,8 @@ export function SavingsPage() {
                 <Input
                   placeholder="Search transactions..."
                   className="pl-10"
+                  value={searchTerm}
+                  onChange={handleSearch}
                 />
               </div>
               <Button variant="outline" size="icon">
@@ -248,46 +322,105 @@ export function SavingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((txn) => (
-                  <TableRow key={txn.id}>
-                    <TableCell className="font-mono text-sm">{txn.id}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{txn.date}</div>
-                        <div className="text-muted-foreground">{txn.time}</div>
+                {isTransactionsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-64 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <p className="text-sm font-medium text-muted-foreground">Loading transactions...</p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{txn.member}</div>
-                        <div className="text-sm text-muted-foreground">{txn.memberId}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{txn.type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          txn.isCredit
-                            ? 'font-semibold text-green-600 dark:text-green-400'
-                            : 'font-semibold text-red-600 dark:text-red-400'
-                        }
-                      >
-                        {txn.isCredit ? '+' : '-'}{txn.amount}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-medium">{txn.balanceAfter}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {txn.reference}
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : transactions.length > 0 ? (
+                  transactions.map((txn) => (
+                    <TableRow key={txn.name}>
+                      <TableCell className="font-mono text-xs">{txn.name}</TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          <div className="font-bold">{txn.posting_date}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-bold text-sm">{txn.member_name}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{txn.member}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest">{txn.type}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={
+                            txn.type === 'Deposit'
+                              ? 'font-black text-green-600 dark:text-green-400'
+                              : 'font-black text-red-600 dark:text-red-400'
+                          }
+                        >
+                          {txn.type === 'Deposit' ? '+' : '-'}{formatCurrency(txn.amount)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm font-black italic opacity-60">
+                        {txn.payment_mode}
+                      </TableCell>
+                      <TableCell className="font-mono text-[10px] text-muted-foreground">
+                        {txn.reference_number || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-64 text-center text-muted-foreground">
+                      No transactions found
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination Controls */}
+          <div className="mt-8 flex items-center justify-between border-t border-primary/5 pt-6">
+            <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              Showing <span className="text-foreground text-sm font-black">{transactions.length}</span> of <span className="text-foreground text-sm font-black">{pagination.total}</span> transactions
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-black text-[10px] uppercase tracking-widest h-9 px-4 rounded-xl"
+                onClick={() => handlePageChange(Math.max(0, pagination.limit_start - pagination.limit_page_length))}
+                disabled={pagination.limit_start === 0 || isTransactionsLoading}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Prev
+              </Button>
+              <div className="flex items-center gap-1 font-black text-sm px-4">
+                {Math.floor(pagination.limit_start / pagination.limit_page_length) + 1}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-black text-[10px] uppercase tracking-widest h-9 px-4 rounded-xl"
+                onClick={() => handlePageChange(pagination.limit_start + pagination.limit_page_length)}
+                disabled={pagination.limit_start + pagination.limit_page_length >= pagination.total || isTransactionsLoading}
+              >
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      <GlobalSaveModal
+        open={isRecordModalOpen}
+        onOpenChange={setIsRecordModalOpen}
+        onSuccess={() => {
+          fetchData();
+          fetchTransactions(0, searchTerm);
+        }}
+      />
     </div>
   );
 }

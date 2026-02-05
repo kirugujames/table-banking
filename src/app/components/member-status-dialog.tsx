@@ -35,19 +35,29 @@ export function MemberStatusDialog({
     const handleStatusChange = async () => {
         setLoading(true);
         try {
-            const newStatus = isInactive ? 'Active' : 'Disabled'; // Or 'Inactive', depending on requirements. Assuming 'Disabled' based on context but could be 'Inactive'. Let's stick effectively to 'enable' -> Active or similar.
-            // Wait, let's verify exact status strings. The backend likely expects 'Active', 'Inactive', 'Suspended' etc.
-            // Assuming 'Active' for enable, and 'Inactive' or 'Suspended' for disable.
-            // Let's assume the backend handles specific logic or we send 'Active' to enable, and 'Inactive' to disable.
-            const targetStatus = isInactive ? 'Active' : 'Inactive';
-
-            await memberService.updateMemberStatus(member.name, targetStatus);
-            toast.success(`Member ${isInactive ? 'enabled' : 'disabled'} successfully!`);
+            if (isInactive) {
+                await memberService.enableMember(member.name);
+                toast.success('Member enabled successfully!');
+            } else {
+                await memberService.disableMember(member.name);
+                toast.success('Member disabled successfully!');
+            }
             onOpenChange(false);
             onSuccess?.();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Status update error:', error);
-            toast.error(`Failed to ${action} member. Please try again.`);
+            // Extract error message from API response
+            let errorMessage = `Failed to ${action} member. Please try again.`;
+            if (error?.response?.data?.exception) {
+                const exceptionMsg = error.response.data.exception;
+                const match = exceptionMsg.match(/ValidationError: (.+?)(?:"|$)/);
+                if (match && match[1]) {
+                    errorMessage = match[1];
+                }
+            } else if (error?.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
