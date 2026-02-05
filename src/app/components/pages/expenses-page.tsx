@@ -83,7 +83,8 @@ export function ExpensesPage() {
       toast.error('Failed to load expense summary');
     }
   };
-
+ 
+  //gegeg
   const fetchTransactions = useCallback(async () => {
     setTableLoading(true);
     try {
