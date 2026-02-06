@@ -1,7 +1,7 @@
 import { cn } from "@/app/components/ui/utils";
 
 interface StatusBadgeProps {
-  status: 'active' | 'pending' | 'approved' | 'defaulted' | 'completed' | 'inactive' | 'draft' | 'disbursed' | 'probation';
+  status: 'active' | 'pending' | 'approved' | 'defaulted' | 'completed' | 'inactive' | 'draft' | 'disbursed' | 'probation' | 'pending approval';
   className?: string;
 }
 
@@ -41,6 +41,10 @@ const statusConfig = {
   probation: {
     label: 'Probation',
     className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  },
+  'pending approval': {
+    label: 'Pending Approval',
+    className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   },
 };
 

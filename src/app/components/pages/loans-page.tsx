@@ -35,6 +35,8 @@ import {
   TrendingUp,
   AlertCircle,
   Banknote,
+  Send,
+  Wallet,
 } from 'lucide-react';
 import {
   Select,
@@ -111,6 +113,31 @@ export function LoansPage() {
     } catch (error) {
       console.error('Error fetching loan applications:', error);
       toast.error('Failed to load loan applications');
+    } finally {
+      setIsAppsLoading(false);
+    }
+  };
+
+  const handleLoanAction = async (action: 'submit' | 'approve' | 'disburse', loanId: string) => {
+    try {
+      setIsAppsLoading(true);
+      let response;
+      if (action === 'submit') {
+        response = await loanService.submitLoanApplication(loanId);
+      } else if (action === 'approve') {
+        response = await loanService.approveLoanApplication(loanId);
+      } else if (action === 'disburse') {
+        response = await loanService.disburseLoan(loanId);
+      }
+
+      if (response && (response.status === 'success' || response.status === 'ok')) {
+        toast.success(response.message || `Loan ${action}ed successfully`);
+        fetchApplications();
+        fetchDashboardStats();
+      }
+    } catch (error: any) {
+      console.error(`Error performing ${action} on loan:`, error);
+      toast.error(error.message || `Failed to ${action} loan`);
     } finally {
       setIsAppsLoading(false);
     }
@@ -287,9 +314,23 @@ export function LoansPage() {
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            {loan.status.toLowerCase() === 'pending' && (
+
+                            {loan.status.toLowerCase() === 'draft' && (
+                              <DropdownMenuItem
+                                onClick={() => handleLoanAction('submit', loan.loan_id)}
+                                className="text-primary font-medium"
+                              >
+                                <Send className="mr-2 h-4 w-4" />
+                                Submit Application
+                              </DropdownMenuItem>
+                            )}
+
+                            {['pending approval', 'pending'].includes(loan.status.toLowerCase()) && (
                               <>
-                                <DropdownMenuItem className="text-green-600">
+                                <DropdownMenuItem
+                                  onClick={() => handleLoanAction('approve', loan.loan_id)}
+                                  className="text-green-600 font-medium"
+                                >
                                   <CheckCircle className="mr-2 h-4 w-4" />
                                   Approve Loan
                                 </DropdownMenuItem>
@@ -299,6 +340,17 @@ export function LoansPage() {
                                 </DropdownMenuItem>
                               </>
                             )}
+
+                            {loan.status.toLowerCase() === 'approved' && (
+                              <DropdownMenuItem
+                                onClick={() => handleLoanAction('disburse', loan.loan_id)}
+                                className="text-secondary font-medium"
+                              >
+                                <Wallet className="mr-2 h-4 w-4" />
+                                Disburse Loan
+                              </DropdownMenuItem>
+                            )}
+
                             {loan.status.toLowerCase() === 'active' && (
                               <DropdownMenuItem
                                 onClick={() => {

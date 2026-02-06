@@ -16,6 +16,8 @@ import {
   ChevronDown,
   LogOut,
   User,
+  Shield,
+  UserCog,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -56,6 +58,15 @@ const navigation = [
   { name: 'Transactions', icon: ArrowLeftRight, path: 'transactions' },
   { name: 'Expenses', icon: Receipt, path: 'expenses' },
   { name: 'Reports', icon: BarChart3, path: 'reports' },
+  {
+    name: 'User Management',
+    icon: UserCog,
+    path: 'user-management',
+    children: [
+      { name: 'Roles', path: 'roles' },
+      { name: 'Users', path: 'users' },
+    ],
+  },
   { name: 'Settings', icon: Settings, path: 'settings' },
 ];
 

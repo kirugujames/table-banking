@@ -10,6 +10,8 @@ import { TransactionsPage } from '@/app/components/pages/transactions-page';
 import { ExpensesPage } from '@/app/components/pages/expenses-page';
 import { ReportsPage } from '@/app/components/pages/reports-page';
 import { SettingsPage } from '@/app/components/pages/settings-page';
+import { RolesPage } from '@/app/components/pages/roles-page';
+import { UsersPage } from '@/app/components/pages/users-page';
 import { LoginPage } from '@/app/components/pages/login-page';
 import { OtpPage } from '@/app/components/pages/otp-page';
 import { ForgotPasswordPage } from '@/app/components/pages/forgot-password-page';
@@ -159,7 +161,11 @@ function AppContent() {
       case 'expenses':
         return <ExpensesPage />;
       case 'reports':
-        // return <ReportsPage />;
+        return <ReportsPage />;
+      case 'roles':
+        return <RolesPage />;
+      case 'users':
+        return <UsersPage />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -198,6 +204,6 @@ export default function App() {
       <Toaster position="top-center" expand={true} richColors />
       <HotToaster position="top-right" />
     </AuthProvider>
-    
+
   );
 }

@@ -161,5 +161,29 @@ export const loanService = {
             throw { response: { data: response.data } };
         }
         return response.data.message || response.data;
+    },
+
+    async submitLoanApplication(loanId: string) {
+        const response = await api.post('/api/method/sacc_app.api.submit_loan_application', { loan_id: loanId });
+        if (response.data.message?.status === 'success') {
+            return response.data.message;
+        }
+        throw new Error(response.data.message?.message || 'Failed to submit loan application');
+    },
+
+    async approveLoanApplication(loanId: string) {
+        const response = await api.post('/api/method/sacc_app.api.approve_loan_application', { loan_id: loanId });
+        if (response.data.message?.status === 'success') {
+            return response.data.message;
+        }
+        throw new Error(response.data.message?.message || 'Failed to approve loan application');
+    },
+
+    async disburseLoan(loanId: string) {
+        const response = await api.post('/api/method/sacc_app.api.disburse_loan', { loan_id: loanId });
+        if (response.data.message?.status === 'success') {
+            return response.data.message;
+        }
+        throw new Error(response.data.message?.message || 'Failed to disburse loan');
     }
 };
