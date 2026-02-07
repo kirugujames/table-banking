@@ -1,5 +1,6 @@
 import api from './axios';
 import { User, Role } from './roles';
+import { secureStorage } from './secure-storage';
 
 export const mapApiRoleToInternalRole = (roles: string[]): Role => {
     if (roles.includes('Administrator') || roles.includes('System Manager')) {
@@ -53,22 +54,22 @@ export const authService = {
     },
 
     saveAuthData(apiKey: string, apiSecret: string) {
-        localStorage.setItem('api_key', apiKey);
-        localStorage.setItem('api_secret', apiSecret);
+        secureStorage.setItem('api_key', apiKey);
+        secureStorage.setItem('api_secret', apiSecret);
     },
 
     clearAuthData() {
-        localStorage.removeItem('api_key');
-        localStorage.removeItem('api_secret');
-        localStorage.removeItem('user');
+        secureStorage.removeItem('api_key');
+        secureStorage.removeItem('api_secret');
+        secureStorage.removeItem('user');
     },
 
     saveUser(user: User) {
-        localStorage.setItem('user', JSON.stringify(user));
+        secureStorage.setItem('user', JSON.stringify(user));
     },
 
     getStoredUser(): User | null {
-        const storedUser = localStorage.getItem('user');
+        const storedUser = secureStorage.getItem('user');
         if (!storedUser) return null;
         try {
             return JSON.parse(storedUser);

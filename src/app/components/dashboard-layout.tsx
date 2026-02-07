@@ -18,6 +18,7 @@ import {
   User,
   Shield,
   UserCog,
+  HeartHandshake,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -58,6 +59,7 @@ const navigation = [
   { name: 'Transactions', icon: ArrowLeftRight, path: 'transactions' },
   { name: 'Expenses', icon: Receipt, path: 'expenses' },
   { name: 'Reports', icon: BarChart3, path: 'reports' },
+  { name: 'Welfare', icon: HeartHandshake, path: 'welfare' },
   {
     name: 'User Management',
     icon: UserCog,

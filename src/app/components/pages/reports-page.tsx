@@ -39,24 +39,21 @@ export function ReportsPage() {
   const [toDate, setToDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<string>('All Accounts');
+  const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [selectedMember, setSelectedMember] = useState<string>('All Members');
-  const [selectedLoanProduct, setSelectedLoanProduct] = useState<string>('All Products');
+  const [selectedLoanId, setSelectedLoanId] = useState<string>('');
   const [accounts, setAccounts] = useState<{ name: string; account_name: string }[]>([]);
   const [members, setMembers] = useState<{ name: string; member_name: string }[]>([]);
-  const [loanProducts, setLoanProducts] = useState<{ name: string; product_name: string }[]>([]);
 
   useEffect(() => {
     const loadFilters = async () => {
       try {
-        const [accs, mems, products] = await Promise.all([
+        const [accs, mems] = await Promise.all([
           reportService.getAccounts().catch(() => []),
           memberService.getAllMembers().catch(() => []),
-          loanService.getAllLoanProducts().catch(() => []),
         ]);
         setAccounts(accs);
         setMembers(mems);
-        setLoanProducts(products);
       } catch (error) {
         console.error('Failed to load filters:', error);
       }
@@ -75,16 +72,67 @@ export function ReportsPage() {
       } else if (reportType === 'trial_balance') {
         data = await reportService.getTrialBalance(fromDate, toDate);
       } else if (reportType === 'account_statement') {
-        data = await reportService.getAccountStatement(fromDate, toDate, selectedAccount === 'All Accounts' ? undefined : selectedAccount);
-      } else if (reportType === 'loan_report') {
-        data = await reportService.getLoanReport(fromDate, toDate);
+        data = await reportService.getAccountStatement(
+          fromDate,
+          toDate,
+          selectedAccount || undefined,
+          selectedMember === 'All Members' ? undefined : selectedMember
+        );
       } else if (reportType === 'loan_aging') {
-        data = await reportService.getLoanAging(toDate);
+        const response: any = await reportService.getLoanAging(toDate);
+        data = {
+          columns: [
+            { fieldname: 'loan_id', label: 'Loan ID', fieldtype: 'Link', width: 120 },
+            { fieldname: 'member', label: 'Member', fieldtype: 'Data', width: 150 },
+            { fieldname: 'loan_amount', label: 'Loan Amount', fieldtype: 'Currency', width: 130 },
+            { fieldname: 'outstanding_balance', label: 'Outstanding Balance', fieldtype: 'Currency', width: 150 },
+            { fieldname: 'status', label: 'Status', fieldtype: 'Data', width: 100 },
+            { fieldname: 'days_overdue', label: 'Days Overdue', fieldtype: 'Int', width: 120 },
+            { fieldname: 'aging_bucket', label: 'Aging Bucket', fieldtype: 'Data', width: 120 },
+          ],
+          data: response.data || []
+        };
       } else if (reportType === 'loan_ledger') {
-        data = await reportService.getLoanLedger(fromDate, toDate, selectedMember === 'All Members' ? undefined : selectedMember);
+        const response: any = await reportService.getLoanLedger(
+          fromDate,
+          toDate,
+          selectedMember === 'All Members' ? undefined : selectedMember,
+          selectedLoanId || undefined
+        );
+        data = {
+          columns: [
+            { fieldname: 'posting_date', label: 'Date', fieldtype: 'Date', width: 120 },
+            { fieldname: 'voucher_no', label: 'Voucher No', fieldtype: 'Data', width: 180 },
+            { fieldname: 'debit', label: 'Debit', fieldtype: 'Currency', width: 130 },
+            { fieldname: 'credit', label: 'Credit', fieldtype: 'Currency', width: 130 },
+            { fieldname: 'balance', label: 'Balance', fieldtype: 'Currency', width: 130 },
+            { fieldname: 'remarks', label: 'Remarks', fieldtype: 'Data', width: 250 },
+          ],
+          data: response.data?.transactions || [],
+          report_summary: response.data?.summary ? [
+            { label: 'Opening Balance', value: response.data.summary.opening_balance, datatype: 'Currency' },
+            { label: 'Total Debit', value: response.data.summary.total_debit, datatype: 'Currency' },
+            { label: 'Total Credit', value: response.data.summary.total_credit, datatype: 'Currency' },
+            { label: 'Closing Balance', value: response.data.summary.closing_balance, datatype: 'Currency' },
+          ] : undefined
+        };
       }
+
+
+      // Validate data structure before setting state
+      if (data && (!data.columns || !data.data)) {
+        console.error('Invalid report data structure:', data);
+        toast.error('Received invalid data from server');
+        setReportData(null);
+        return;
+      }
+
       setReportData(data);
-      toast.success('Report generated successfully');
+      if (data && data.data.length === 0) {
+        toast.info('No records found for the selected criteria');
+      } else {
+        toast.success('Report generated successfully');
+      }
     } catch (error: any) {
       console.error('Error fetching report:', error);
       toast.error('Failed to generate report');
@@ -96,9 +144,9 @@ export function ReportsPage() {
   const handleDownloadCSV = () => {
     if (!reportData) return;
 
-    const headers = reportData.columns.filter(col => !col.hidden).map(col => col.label);
-    const rows = reportData.data.map(row =>
-      reportData.columns.filter(col => !col.hidden).map(col => {
+    const headers = reportData.columns?.filter(col => !col.hidden).map(col => col.label) || [];
+    const rows = reportData.data?.map(row =>
+      reportData.columns?.filter(col => !col.hidden).map(col => {
         const val = row[col.fieldname];
         return typeof val === 'number' ? val.toFixed(2) : `"${val || ''}"`;
       })
@@ -158,33 +206,13 @@ export function ReportsPage() {
                     <SelectItem value="balance_sheet">Balance Sheet</SelectItem>
                     <SelectItem value="trial_balance">Trial Balance</SelectItem>
                     <SelectItem value="account_statement">Account Statement</SelectItem>
-                    <SelectItem value="loan_report">Loan Portfolio Report</SelectItem>
                     <SelectItem value="loan_aging">Loan Aging Report</SelectItem>
                     <SelectItem value="loan_ledger">Loan Ledger Report</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {reportType === 'account_statement' && (
-                <div className="space-y-2">
-                  <Label>Account</Label>
-                  <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All Accounts">All Accounts</SelectItem>
-                      {accounts.map((acc) => (
-                        <SelectItem key={acc.name} value={acc.name}>
-                          {acc.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {reportType === 'loan_ledger' && (
+              {(reportType === 'account_statement' || reportType === 'loan_ledger') && (
                 <div className="space-y-2">
                   <Label>Member</Label>
                   <Select value={selectedMember} onValueChange={setSelectedMember}>
@@ -203,22 +231,27 @@ export function ReportsPage() {
                 </div>
               )}
 
-              {reportType === 'loan_report' && (
+              {reportType === 'account_statement' && (
                 <div className="space-y-2">
-                  <Label>Loan Product</Label>
-                  <Select value={selectedLoanProduct} onValueChange={setSelectedLoanProduct}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All Products">All Products</SelectItem>
-                      {loanProducts.map((p) => (
-                        <SelectItem key={p.name} value={p.name}>
-                          {p.product_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Account ID (Optional)</Label>
+                  <Input
+                    placeholder="Enter Account ID"
+                    value={selectedAccount}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Member filter is handled above for loan_ledger */}
+
+              {reportType === 'loan_ledger' && (
+                <div className="space-y-2">
+                  <Label>Loan ID (Optional)</Label>
+                  <Input
+                    placeholder="Enter Loan ID"
+                    value={selectedLoanId}
+                    onChange={(e) => setSelectedLoanId(e.target.value)}
+                  />
                 </div>
               )}
 
@@ -266,7 +299,6 @@ export function ReportsPage() {
                   {reportType === 'balance_sheet' && 'Balance Sheet'}
                   {reportType === 'trial_balance' && 'Trial Balance'}
                   {reportType === 'account_statement' && 'Account Statement'}
-                  {reportType === 'loan_report' && 'Loan Portfolio Report'}
                   {reportType === 'loan_aging' && 'Loan Aging Report'}
                   {reportType === 'loan_ledger' && 'Loan Ledger Report'}
                 </CardTitle>
@@ -293,7 +325,8 @@ export function ReportsPage() {
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow>
-                      {reportData.columns.filter(col => !col.hidden).map((col) => (
+
+                      {reportData.columns && reportData.columns.filter(col => !col.hidden).map((col) => (
                         <TableHead
                           key={col.fieldname}
                           className={col.fieldtype === 'Currency' ? 'text-right' : ''}
@@ -310,7 +343,8 @@ export function ReportsPage() {
                         key={idx}
                         className={row.is_group ? 'font-bold bg-muted/10' : ''}
                       >
-                        {reportData.columns.filter(col => !col.hidden).map((col) => {
+
+                        {reportData.columns && reportData.columns.filter(col => !col.hidden).map((col) => {
                           const value = row[col.fieldname];
                           const isIndented = col.fieldname === 'account' && row.indent > 0;
 

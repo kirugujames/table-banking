@@ -12,6 +12,7 @@ import { ReportsPage } from '@/app/components/pages/reports-page';
 import { SettingsPage } from '@/app/components/pages/settings-page';
 import { RolesPage } from '@/app/components/pages/roles-page';
 import { UsersPage } from '@/app/components/pages/users-page';
+import { WelfarePage } from '@/app/components/pages/welfare-page';
 import { LoginPage } from '@/app/components/pages/login-page';
 import { OtpPage } from '@/app/components/pages/otp-page';
 import { ForgotPasswordPage } from '@/app/components/pages/forgot-password-page';
@@ -21,6 +22,7 @@ import { Role } from '@/app/lib/roles';
 import { Toaster } from '@/app/components/ui/sonner';
 import { toast } from 'sonner';
 import { authService } from '@/app/lib/auth-service';
+import { InactivityLogout } from '@/app/components/inactivity-logout';
 
 function AppContent() {
   const { user, isAuthenticated, isLoading, login, logout, verifyOtp, checkUserExists, resetPassword } = useAuth();
@@ -166,6 +168,8 @@ function AppContent() {
         return <RolesPage />;
       case 'users':
         return <UsersPage />;
+      case 'welfare':
+        return <WelfarePage />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -200,7 +204,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <InactivityLogout>
+        <AppContent />
+      </InactivityLogout>
       <Toaster position="top-center" expand={true} richColors />
       <HotToaster position="top-right" />
     </AuthProvider>

@@ -37,10 +37,20 @@ export const reportService = {
         return response.data.message;
     },
 
-    async getAccountStatement(fromDate: string, toDate: string, accounts?: string): Promise<ReportData> {
+    async getAccountStatement(fromDate: string, toDate: string, account?: string, member?: string): Promise<ReportData> {
         const response = await api.get('/api/method/sacc_app.api.get_account_statement', {
-            params: { from_date: fromDate, to_date: toDate, accounts }
+            params: { from_date: fromDate, to_date: toDate, account, member }
         });
+
+        // Safety check: Ensure we have a valid response structure
+        if (!response.data?.message || !response.data.message.columns || !response.data.message.data) {
+            console.warn('Invalid report data received from API', response.data);
+            return {
+                columns: [],
+                data: []
+            };
+        }
+
         return response.data.message;
     },
 
@@ -58,9 +68,9 @@ export const reportService = {
         return response.data.message;
     },
 
-    async getLoanLedger(fromDate: string, toDate: string, member?: string): Promise<ReportData> {
+    async getLoanLedger(fromDate: string, toDate: string, member?: string, loan_id?: string): Promise<ReportData> {
         const response = await api.get('/api/method/sacc_app.api.get_loan_ledger_report', {
-            params: { from_date: fromDate, to_date: toDate, member }
+            params: { date_from: fromDate, date_to: toDate, member, loan_id }
         });
         return response.data.message;
     },

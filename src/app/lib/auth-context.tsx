@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, Role } from './roles';
 
 import { authService } from './auth-service';
+import { secureStorage } from './secure-storage';
 
 interface AuthContextType {
     user: User | null;
@@ -31,8 +32,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     useEffect(() => {
-        const apiKey = localStorage.getItem('api_key');
-        const apiSecret = localStorage.getItem('api_secret');
+        const apiKey = secureStorage.getItem('api_key');
+        const apiSecret = secureStorage.getItem('api_secret');
 
         if (apiKey && apiSecret) {
             fetchCurrentUser().finally(() => setIsLoading(false));

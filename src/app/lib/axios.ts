@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { secureStorage } from './secure-storage';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -11,8 +12,8 @@ const api = axios.create({
 // Request interceptor for API calls
 api.interceptors.request.use(
     (config) => {
-        const apiKey = localStorage.getItem('api_key');
-        const apiSecret = localStorage.getItem('api_secret');
+        const apiKey = secureStorage.getItem('api_key');
+        const apiSecret = secureStorage.getItem('api_secret');
         if (apiKey && apiSecret) {
             config.headers.Authorization = `token ${apiKey}:${apiSecret}`;
         }
@@ -31,8 +32,8 @@ api.interceptors.response.use(
     async (error) => {
         if (error.response?.status === 401) {
             // Clear local storage and redirect to login if unauthorized
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            secureStorage.removeItem('token');
+            secureStorage.removeItem('user');
             window.location.href = '/login';
         }
         return Promise.reject(error);
